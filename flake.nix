@@ -25,6 +25,9 @@
         packages = with pkgs; [
           jdk17
         ];
+        env = {
+          JAVA_HOME = "${pkgs.jdk17}";
+        };
       };
 
     };

@@ -1,0 +1,77 @@
+buildscript {
+    repositories {
+        gradlePluginPortal()
+    }
+    dependencies {
+        classpath 'com.bmuschko:gradle-docker-plugin:9.4.0'
+    }
+}
+
+apply plugin: 'com.bmuschko.docker-remote-api'
+
+import com.bmuschko.gradle.docker.tasks.image.Dockerfile
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerRemoveContainer
+
+task dockerComposerUp(type: Exec) {
+    workingDir "${project.rootDir}"
+     commandLine 'docker', 'compose', 'up'
+     doLast {
+         println "Executed!"
+     }
+}
+
+task copyDockerSources(type: Copy) {
+    from("${project.rootDir}")
+    into("${project.rootDir}/build/docker")
+    include("settings.gradle", "build.gradle", "gradle/**", "gradlew", "install.sh")
+}
+
+task createDockerfile(type: Dockerfile) {
+    dependsOn copyDockerSources
+    //from 'eclipse-temurin:17'
+    from 'ubuntu:20.04'
+    //copyFile("install.sh", "/install.sh")
+    //runCommand("bash /install.sh")
+    runCommand('apt update && apt upgrade -y && apt install -y openjdk-17-jdk curl')
+    runCommand('curl -fsSL https://get.docker.com | sh')
+    workingDir('/app')
+    def paths = ["settings.gradle", "build.gradle", "gradle", "gradlew"]
+    for(p in paths){
+        //copyFile('settings.gradle', '/app/settings.gradle')
+        copyFile("${p}", "${p}")
+    }
+    //entryPoint('./gradlew', 'dockerComposerUp', '--stacktrace')
+    entryPoint('docker ps -a')
+}
+
+task buildDockerImage(type: DockerBuildImage) {
+    dependsOn createDockerfile
+    images.add('ghcr.io/rubenhoenle/docker-composer:latest')
+}
+
+task createDockerContainer(type: DockerCreateContainer) {
+    dependsOn buildDockerImage
+    targetImageId buildDockerImage.getImageId()
+    //binds(["/host/foo":"/app/docker-compose.yaml"])
+    hostConfig.binds = ["${project.rootDir}":"/app/docker-compose.yaml", "/var/run/docker.sock":"/var/run/docker.sock"]
+}
+
+task startDockerContainer(type: DockerStartContainer) {
+    dependsOn createDockerContainer
+    targetContainerId createDockerContainer.getContainerId()
+}
+
+task stopDockerContainer(type: DockerStopContainer) {
+    targetContainerId createDockerContainer.getContainerId()
+}
+
+task removeDockerContainer(type: DockerRemoveContainer) {
+    dependsOn stopDockerContainer
+    targetContainerId createDockerContainer.getContainerId()
+}
+
+
