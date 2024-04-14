@@ -13,15 +13,23 @@ import com.bmuschko.gradle.docker.tasks.image.Dockerfile
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.container.DockerCreateContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerStartContainer
-import com.bmuschko.gradle.docker.tasks.container.DockerStopContainer
 import com.bmuschko.gradle.docker.tasks.container.DockerRemoveContainer
+import com.bmuschko.gradle.docker.tasks.container.DockerExecContainer
 
 task dockerComposerUp(type: Exec) {
     workingDir "${project.rootDir}"
-     commandLine 'docker', 'compose', 'up'
-     doLast {
-         println "Executed!"
-     }
+    commandLine 'docker', 'compose', 'up'
+    doLast {
+        println "Executed!"
+    }
+}
+
+task dockerComposerDown(type: Exec) {
+    workingDir "${project.rootDir}"
+    commandLine 'docker', 'compose', 'down'
+    doLast {
+        println "Executed!"
+    }
 }
 
 task copyDockerSources(type: Copy) {
@@ -32,32 +40,40 @@ task copyDockerSources(type: Copy) {
 
 task createDockerfile(type: Dockerfile) {
     dependsOn copyDockerSources
-    //from 'eclipse-temurin:17'
     from 'ubuntu:20.04'
-    //copyFile("install.sh", "/install.sh")
-    //runCommand("bash /install.sh")
-    runCommand('apt update && apt upgrade -y && apt install -y openjdk-17-jdk curl')
+    arg('DOCKER_GROUP_ID')
+    runCommand('apt update && apt upgrade -y && apt install -y openjdk-17-jdk curl sudo')
     runCommand('curl -fsSL https://get.docker.com | sh')
+    // In case there's permission problems with the Docker socket due to mismatching group ids for the
+    // docker group, uncomment this line 
+    //runCommand('groupmod -g 131 docker && gpasswd -a root docker')
     workingDir('/app')
     def paths = ["settings.gradle", "build.gradle", "gradle", "gradlew"]
     for(p in paths){
-        //copyFile('settings.gradle', '/app/settings.gradle')
         copyFile("${p}", "${p}")
     }
-    //entryPoint('./gradlew', 'dockerComposerUp', '--stacktrace')
-    entryPoint('docker ps -a')
+    
+    entryPoint('./gradlew', 'dockerComposerUp', '--stacktrace')
 }
 
 task buildDockerImage(type: DockerBuildImage) {
     dependsOn createDockerfile
+    // In case there's permission problems with the Docker socket due to mismatching group ids for the
+    // docker group, uncomment this code
+    //String gid = "getent group docker | cut -d: -f3".execute().text
+    //gid = gid.trim()
+    //buildArgs = ["DOCKER_GROUP_ID": "${gid}"]
     images.add('ghcr.io/rubenhoenle/docker-composer:latest')
 }
 
 task createDockerContainer(type: DockerCreateContainer) {
     dependsOn buildDockerImage
     targetImageId buildDockerImage.getImageId()
-    //binds(["/host/foo":"/app/docker-compose.yaml"])
-    hostConfig.binds = ["${project.rootDir}":"/app/docker-compose.yaml", "/var/run/docker.sock":"/var/run/docker.sock"]
+    String uid = "id -u".execute().text
+    uid = uid.trim()
+    hostConfig.groups = ['docker']
+    hostConfig.binds = ["${project.rootDir}/docker-compose.yaml":"/app/docker-compose.yaml", "/var/run/user/${uid}/docker.sock":"/var/run/docker.sock"]
+    tty = true
 }
 
 task startDockerContainer(type: DockerStartContainer) {
@@ -65,13 +81,12 @@ task startDockerContainer(type: DockerStartContainer) {
     targetContainerId createDockerContainer.getContainerId()
 }
 
-task stopDockerContainer(type: DockerStopContainer) {
-    targetContainerId createDockerContainer.getContainerId()
+task stopDockerContainer(type: DockerExecContainer) {
+    targetContainerId startDockerContainer.getContainerId()
+    commands.add(['./gradlew', 'dockerComposerDown', '--stacktrace'] as String[])
 }
 
 task removeDockerContainer(type: DockerRemoveContainer) {
     dependsOn stopDockerContainer
-    targetContainerId createDockerContainer.getContainerId()
+    targetContainerId startDockerContainer.getContainerId()
 }
-
-
