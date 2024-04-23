@@ -1,6 +1,6 @@
 <h1 align="center">
   <br>
-  <a href="https://docker-composer.dev"><img src="https://github.com/rubenhoenle/docker-composer/raw/develop/docs/images/docker-composer.svg" height="256px" width="256px"></a>
+  <a href="https://docker-composer.dev"><img src="https://github.com/rubenhoenle/docker-composer/raw/temp/docs/images/docker-composer.svg" height="256px" width="256px"></a>
   <br>
   docker-composer
   <br>

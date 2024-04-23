@@ -4,6 +4,8 @@ repo_name: rubenhoenle/docker-composer
 theme:
   name: material
   language: de
+  favicon: images/favicon.png
+  logo: images/docker-composer.svg
   features:
     - navigation.tabs
     - navigation.tabs.sticky
