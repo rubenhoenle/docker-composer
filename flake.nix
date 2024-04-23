@@ -24,6 +24,7 @@
       devShells.${system}.default = pkgs.mkShell {
         packages = with pkgs; [
           jdk17
+          python311Packages.mkdocs-material
         ];
         env = {
           JAVA_HOME = "${pkgs.jdk17}";
