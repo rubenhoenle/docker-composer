@@ -1,0 +1,24 @@
+name: Documentation
+
+on:
+  push:
+    branches: ["main"]
+
+jobs:
+  docs:
+    name: Deploy documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        run: sh <(curl -L https://nixos.org/nix/install) --no-daemon
+
+      - name: Build the docs
+        run: |
+          . /home/runner/.nix-profile/etc/profile.d/nix.sh
+          nix build .#mkdocs --extra-experimental-features "nix-command flakes"
+
+      # TODO: deploy

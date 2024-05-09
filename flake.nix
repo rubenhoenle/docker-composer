@@ -1,5 +1,5 @@
 {
-  description = "A very basic flake";
+  description = "A flake which builds and serves the mkdocs system for docker-composer";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -16,6 +16,30 @@
         inherit system;
       };
       treefmtEval = treefmt-nix.lib.evalModule pkgs ./treefmt.nix;
+
+      build-docs = pkgs.stdenv.mkDerivation {
+        name = "mkdocs";
+        src = self;
+        nativeBuildInputs = with pkgs; [
+          python311Packages.mkdocs
+          python311Packages.mkdocs-material
+        ];
+        buildPhase = ''
+          mkdocs build --site-dir dist
+        '';
+        installPhase = ''
+          mkdir $out
+          cp -R dist/* $out/
+        '';
+      };
+
+      serve-docs = pkgs.writeShellApplication {
+        name = "mkdocs-serve";
+        text = ''${(pkgs.python311.withPackages(ps: with ps; [
+              mkdocs mkdocs-material
+            ]))}/bin/mkdocs serve
+        '';
+      };
     in
     {
       formatter.${system} = treefmtEval.config.build.wrapper;
@@ -31,5 +55,10 @@
         };
       };
 
+      packages.${system} = {
+        default = serve-docs;
+        mkdocs = build-docs;
+        serve = serve-docs;
+      };
     };
 }
