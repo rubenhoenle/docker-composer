@@ -1,4 +1,4 @@
-site_name: docker composer
+site_name: docker-composer
 repo_url: https://github.com/rubenhoenle/docker-composer
 repo_name: rubenhoenle/docker-composer
 theme:
