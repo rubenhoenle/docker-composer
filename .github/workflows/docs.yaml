@@ -2,23 +2,61 @@ name: Documentation
 
 on:
   push:
-    branches: ["main"]
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+env:
+  IMAGE_NAME: "ghcr.io/rubenhoenle/docker-composer-docs"
+  IMAGE_TAG: "unstable"
 
 jobs:
-  docs:
-    name: Deploy documentation
+  codeformat:
+    name: Code format check
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: Checkout
+      - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Install nix
-        run: sh <(curl -L https://nixos.org/nix/install) --no-daemon
+        uses: cachix/install-nix-action@v26
 
-      - name: Build the docs
-        run: |
-          . /home/runner/.nix-profile/etc/profile.d/nix.sh
-          nix build .#mkdocs --extra-experimental-features "nix-command flakes"
+      - name: Check code format
+        run: nix flake check
 
-      # TODO: deploy
+  containerimage:
+    name: Build and push container image
+    runs-on: ubuntu-latest
+    needs: [ codeformat ]
+    permissions:
+      contents: read
+      packages: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v26
+
+      - name: Build container image
+        run: nix build .#containerImage
+
+      - name: Load containerimage into docker
+        run: docker load < result
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push container image to GitHub Container Registry
+        if: ${{ github.event_name != 'pull_request' && github.ref_name == 'main' }}
+        run: docker push ${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+
